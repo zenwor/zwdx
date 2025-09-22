@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Starting zwdx server on port $FLASK_PORT..."
-python3 server.py &
+uv run python3 server.py &
 
 SERVER_PID=$!
 
