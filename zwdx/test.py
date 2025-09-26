@@ -22,7 +22,7 @@ class ZWDX:
     def __init__(self, server_url=SERVER_URL):
         self.server_url = server_url
 
-    def submit_job(self, model, data_loader_func, parallelism="DDP"):
+    def submit_job(self, model, data_loader_func, parallelism = "DDP", memory_required = 0):
         try:
             model_bytes = cloudpickle.dumps(model)
             data_loader_bytes = cloudpickle.dumps(data_loader_func)
@@ -30,7 +30,9 @@ class ZWDX:
                 "model_bytes": base64.b64encode(model_bytes).decode("utf-8"),
                 "data_loader_bytes": base64.b64encode(data_loader_bytes).decode("utf-8"),
                 "parallelism": parallelism,
+                "memory_required": memory_required,  # <--- add this
             }
+            
             logger.info(f"Submitting job to {self.server_url}")
             session = requests.Session()
             retries = Retry(total=3, backoff_factor=1, status_forcelist=[502, 503, 504])
@@ -87,5 +89,5 @@ if __name__ == "__main__":
         return DataLoader(dataset, batch_size=32, sampler=sampler)
 
     zwdx = ZWDX()
-    result = zwdx.submit_job(model=model, data_loader_func=get_mnist_loader, parallelism="DDP")
+    result = zwdx.submit_job(model=model, data_loader_func=get_mnist_loader, parallelism="DDP", memory_required=3_000_000_000)
     logger.info(f"Job submission result: {result}")
