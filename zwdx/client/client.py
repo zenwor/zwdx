@@ -9,6 +9,8 @@ import cloudpickle
 import base64
 import logging
 import datetime
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -19,7 +21,7 @@ SERVER_URL = getenv("SERVER_URL")
 HOSTNAME = f"{os.uname().nodename}_{os.getpid()}"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("client")
 
 sio = socketio.Client(reconnection_attempts=5, reconnection_delay=2, request_timeout=30)
 
@@ -76,8 +78,10 @@ def on_start_training(data):
     if torch.cuda.is_available():
         model = model.cuda()
     if parallelism == "DDP":
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[0] if torch.cuda.is_available() else None)
-
+        model = DDP(model, device_ids=[0] if torch.cuda.is_available() else None)
+    elif parallelism == "FSDP":
+        model = FSDP(model)
+        
     torch.manual_seed(42 + rank)
 
     try:

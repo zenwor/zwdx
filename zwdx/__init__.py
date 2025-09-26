@@ -10,16 +10,15 @@ import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from zwdx.utils import getenv
+import logging
 
-SERVER_URL = getenv("SERVER_URL")
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger("zwdx")
+logger.setLevel(logging.INFO)
+if logger.hasHandlers():
+    logger.handlers.clear()
 
 class ZWDX:
-    def __init__(self, server_url=SERVER_URL):
+    def __init__(self, server_url):
         self.server_url = server_url
 
     def submit_job(self, model, data_loader_func, parallelism = "DDP", memory_required = 0):
@@ -30,7 +29,7 @@ class ZWDX:
                 "model_bytes": base64.b64encode(model_bytes).decode("utf-8"),
                 "data_loader_bytes": base64.b64encode(data_loader_bytes).decode("utf-8"),
                 "parallelism": parallelism,
-                "memory_required": memory_required,  # <--- add this
+                "memory_required": memory_required,
             }
             
             logger.info(f"Submitting job to {self.server_url}")
@@ -65,29 +64,3 @@ class ZWDX:
         except Exception as e:
             logger.error(f"Job submission failed: {e}")
             return {"status": "error", "message": str(e)}
-
-
-if __name__ == "__main__":
-    class SimpleCNN(nn.Module):
-        def __init__(self):
-            super(SimpleCNN, self).__init__()
-            self.conv1 = nn.Conv2d(1, 16, 3)
-            self.fc1 = nn.Linear(16 * 26 * 26, 10)
-
-        def forward(self, x):
-            x = torch.relu(self.conv1(x))
-            x = x.view(-1, 16 * 26 * 26)
-            x = self.fc1(x)
-            return x
-
-    model = SimpleCNN()
-
-    def get_mnist_loader(rank, world_size):
-        transform = transforms.ToTensor()
-        dataset = datasets.MNIST("./data", train=True, download=True, transform=transform)
-        sampler = DistributedSampler(dataset, num_replicas=world_size, rank=rank, shuffle=True)
-        return DataLoader(dataset, batch_size=32, sampler=sampler)
-
-    zwdx = ZWDX()
-    result = zwdx.submit_job(model=model, data_loader_func=get_mnist_loader, parallelism="DDP", memory_required=3_000_000_000)
-    logger.info(f"Job submission result: {result}")
