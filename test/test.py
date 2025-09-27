@@ -87,7 +87,7 @@ if __name__ == "__main__":
     result = zwdx.submit_job(
         model=model, 
         data_loader_func=get_mnist_loader, 
-        parallelism="FSDP", 
+        parallelism="DDP", 
         memory_required=12_000_000_000,
         train_func=train,
         eval_func=test,
