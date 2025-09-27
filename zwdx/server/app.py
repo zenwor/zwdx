@@ -80,9 +80,9 @@ def get_results(job_id):
         "status": "complete" if job_data["complete"] else "pending",
         "progress": job_data["progress"],
         "results": job_data["results"],
+        "job_id": job_id,
+        "model_state_dict_bytes": job_data.get("model_state_dict_bytes"),
     }
-    if job_data["complete"]:
-        del g.job_results[job_id]
     return jsonify(response)
 
 # -------- Main entrypoint --------

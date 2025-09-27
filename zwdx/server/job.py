@@ -40,7 +40,13 @@ def submit_job_route(app):
 
         world_size = len(selected_clients)
         job_id = str(uuid.uuid4())
-        g.job_results[job_id] = {"progress": [], "complete": False, "results": {}}
+        g.job_results[job_id] = {
+            "job_id": job_id,  # Include job_id
+            "progress": [],
+            "complete": False,
+            "results": {},
+            "model_state_dict_bytes": None
+        }
 
         g.logger.info(f"Submitting job {job_id} to {world_size} clients, parallelism={parallelism}")
 
@@ -76,7 +82,6 @@ def register_socketio_handlers(socketio):
             g.logger.error(f"Invalid training_progress data: {data}")
             return
 
-        # Log all metrics as a dictionary
         log_message = f"Job {job_id}, rank {rank}: {data}"
         g.logger.info(log_message)
 
@@ -95,11 +100,13 @@ def register_socketio_handlers(socketio):
 
     @socketio.on("training_done")
     def handle_training_done(data):
-        job_id = data["job_id"]
-        final_loss = data["final_loss"]
+        job_id = data.get("job_id")
+        final_loss = data.get("final_loss")
+        model_state_dict_bytes = data.get("model_state_dict_bytes")
         g.logger.info(f"Received final results for job {job_id}: loss={final_loss}")
         if job_id in g.job_results:
             g.job_results[job_id]["results"] = {"final_loss": final_loss}
+            g.job_results[job_id]["model_state_dict_bytes"] = model_state_dict_bytes
             g.job_results[job_id]["complete"] = True
 
 def register_job_routes(app, socketio):
