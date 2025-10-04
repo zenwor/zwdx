@@ -94,13 +94,11 @@ def train_mnist(model, data_loader, optimizer, eval_func, rank, world_size, epoc
     device = next(model.parameters()).device
     model.train()
     
-    # DEBUG: Log data distribution across ranks
     if hasattr(data_loader, 'sampler') and hasattr(data_loader.sampler, 'num_samples'):
         samples_per_rank = data_loader.sampler.num_samples
         if reporter:
             reporter.log(f"Rank {rank}: Processing {samples_per_rank} samples, {len(data_loader)} batches")
     
-    # DEBUG: Check first batch indices to verify no overlap
     first_batch_indices = []
     for batch_idx, (data, target) in enumerate(data_loader):
         if batch_idx == 0:
@@ -213,7 +211,7 @@ if __name__ == "__main__":
         eval_func=test_mnist,
         optimizer=optimizer,
         parallelism="DDP",
-        memory_required=12_000_000_000,  # 500MB
+        memory_required=12_000_000_000,
         room_token=room_token,
     )
 

@@ -1,3 +1,12 @@
+import dill
+import traceback
+import base64
+import torch
+
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("client")
+
 def safe_dumps(obj):
     return dill.dumps(obj, byref=False, recurse=True)
 
@@ -86,3 +95,7 @@ def deserialize_function_payload(payload):
     
     logger.error("[Deserialize] No valid source or pickle found in payload")
     return None
+
+def rebuild_optimizer(model, optimizer_config):
+    cls = getattr(torch.optim, optimizer_config["class"])
+    return cls(model.parameters(), **optimizer_config["kwargs"])
