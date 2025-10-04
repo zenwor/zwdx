@@ -1,6 +1,7 @@
 import requests
-import cloudpickle
 import base64
+import dill
+import inspect
 import torch
 import torch.nn as nn
 from torchvision import datasets, transforms
@@ -16,6 +17,95 @@ logger.setLevel(logging.INFO)
 if logger.hasHandlers():
     logger.handlers.clear()
 
+def serialize_model_with_source(model):
+    """
+    Serialize model by extracting its class source code and state dict.
+    This avoids pickle corruption issues.
+    """
+    import inspect
+    
+    # Get the model's class
+    model_class = type(model)
+    
+    try:
+        # Extract class source code
+        class_source = inspect.getsource(model_class)
+        class_name = model_class.__name__
+        
+        # Get state dict
+        state_dict = model.state_dict()
+        
+        return {
+            "class_source": class_source,
+            "class_name": class_name,
+            "state_dict": base64.b64encode(dill.dumps(state_dict)).decode("utf-8"),
+            "pickled": None  # Don't use pickle for model
+        }
+    except Exception as e:
+        logger.warning(f"Could not extract model source: {e}, falling back to pickle")
+        return {
+            "class_source": None,
+            "class_name": None,
+            "state_dict": None,
+            "pickled": base64.b64encode(dill.dumps(model, recurse=True, byref=False)).decode("utf-8")
+        }
+
+def serialize_function_with_source(func):
+    """
+    Serialize a function by extracting its source code alongside dill pickle.
+    This helps survive Docker/environment boundaries.
+    """
+    if func is None:
+        return None
+    
+    try:
+        # Get source code
+        source = inspect.getsource(func)
+        func_name = func.__name__
+        
+        # Also pickle it (for fallback)
+        pickled = dill.dumps(func, recurse=True)
+        
+        return {
+            "source": source,
+            "name": func_name,
+            "pickled": base64.b64encode(pickled).decode("utf-8")
+        }
+    except Exception as e:
+        logger.warning(f"Could not extract source for {func.__name__}: {e}, using pickle only")
+        return {
+            "source": None,
+            "name": func.__name__,
+            "pickled": base64.b64encode(dill.dumps(func, recurse=True)).decode("utf-8")
+        }
+    """
+    Serialize a function by extracting its source code alongside dill pickle.
+    This helps survive Docker/environment boundaries.
+    """
+    if func is None:
+        return None
+    
+    try:
+        # Get source code
+        source = inspect.getsource(func)
+        func_name = func.__name__
+        
+        # Also pickle it (for fallback)
+        pickled = dill.dumps(func, recurse=True)
+        
+        return {
+            "source": source,
+            "name": func_name,
+            "pickled": base64.b64encode(pickled).decode("utf-8")
+        }
+    except Exception as e:
+        logger.warning(f"Could not extract source for {func.__name__}: {e}, using pickle only")
+        return {
+            "source": None,
+            "name": func.__name__,
+            "pickled": base64.b64encode(dill.dumps(func, recurse=True)).decode("utf-8")
+        }
+
 class ZWDX:
     def __init__(self, server_url):
         self.server_url = server_url
@@ -28,33 +118,43 @@ class ZWDX:
         eval_func=None,
         optimizer=None,
         parallelism="DDP",
-        memory_required=0
+        memory_required=0,
+        data_fetch_func=None,
+        room_token=None,
     ):
         try:
-            model_bytes = cloudpickle.dumps(model)
-            data_loader_bytes = cloudpickle.dumps(data_loader_func)
-            train_bytes = base64.b64encode(cloudpickle.dumps(train_func)).decode("utf-8") if train_func else None
-            eval_bytes = base64.b64encode(cloudpickle.dumps(eval_func)).decode("utf-8") if eval_func else None
+            # Serialize model using source code approach
+            model_payload = serialize_model_with_source(model)
+            
+            # Serialize functions with source extraction
+            data_loader_payload = serialize_function_with_source(data_loader_func)
+            train_payload = serialize_function_with_source(train_func)
+            eval_payload = serialize_function_with_source(eval_func)
+            data_fetch_payload = serialize_function_with_source(data_fetch_func)
+            
             if optimizer is not None:
                 optimizer_config = self.serialize_optimizer(optimizer)
-                optimizer_bytes = base64.b64encode(cloudpickle.dumps(optimizer_config)).decode("utf-8")
+                optimizer_bytes = base64.b64encode(dill.dumps(optimizer_config)).decode("utf-8")
             else:
                 optimizer_bytes = None
-
+            
             job = {
-                "model_bytes": base64.b64encode(model_bytes).decode("utf-8"),
-                "data_loader_bytes": base64.b64encode(data_loader_bytes).decode("utf-8"),
-                "train_func_bytes": train_bytes,
-                "eval_func_bytes": eval_bytes,
+                "model_payload": model_payload,
+                "data_loader_payload": data_loader_payload,
+                "train_payload": train_payload,
+                "eval_payload": eval_payload,
+                "data_fetch_payload": data_fetch_payload,
                 "optimizer_bytes": optimizer_bytes,
                 "parallelism": parallelism,
                 "memory_required": memory_required,
+                "room_token": room_token,
             }
 
-            logger.info(f"Submitting job to {self.server_url}")
+            logger.info(f"Submitting job to {self.server_url} with room_token: {room_token}")
             session = requests.Session()
             retries = Retry(total=3, backoff_factor=1, status_forcelist=[502, 503, 504])
             session.mount("https://", HTTPAdapter(max_retries=retries))
+            session.mount("http://", HTTPAdapter(max_retries=retries))
             response = session.post(f"{self.server_url}/submit_job", json=job, timeout=10)
             result = response.json()
 
@@ -77,7 +177,6 @@ class ZWDX:
                     time.sleep(2)
                 elif result["status"] == "complete":
                     logger.info(f"Job {job_id} completed: final_loss={result['results']['final_loss']}")
-                    # Include job_id in returned dict
                     result["job_id"] = job_id
                     return result
                 else:
@@ -85,21 +184,19 @@ class ZWDX:
                     return result
         except Exception as e:
             logger.error(f"Job submission failed: {e}")
+            import traceback
+            traceback.print_exc()
             return {"status": "error", "message": str(e)}
 
     def get_trained_model(self, job_id, model_template):
         """
         Retrieve the trained model's state dictionary for the given job_id and load it into model_template.
-        Args:
-            job_id (str): The ID of the completed job.
-            model_template (nn.Module): A PyTorch model instance to load the state dictionary into.
-        Returns:
-            nn.Module: The model with loaded trained parameters, or None if retrieval fails.
         """
         try:
             session = requests.Session()
             retries = Retry(total=3, backoff_factor=1, status_forcelist=[502, 503, 504])
             session.mount("https://", HTTPAdapter(max_retries=retries))
+            session.mount("http://", HTTPAdapter(max_retries=retries))
             response = session.get(f"{self.server_url}/get_results/{job_id}", timeout=10)
             result = response.json()
 
@@ -113,7 +210,7 @@ class ZWDX:
                 return None
 
             try:
-                model_state_dict = cloudpickle.loads(base64.b64decode(model_state_dict_bytes))
+                model_state_dict = dill.loads(base64.b64decode(model_state_dict_bytes))
                 model_template.load_state_dict(model_state_dict)
                 logger.info(f"Successfully loaded trained model parameters for job {job_id}")
                 return model_template
@@ -168,13 +265,9 @@ class Reporter:
     def log_metrics(self, **kwargs):
         """
         Log structured metrics as a dictionary, returned for local logging and sent to the server.
-        Args:
-            **kwargs: Arbitrary key-value pairs (e.g., epoch, training_loss, eval_loss, accuracy).
-        Returns:
-            dict: The metrics dictionary, including job_id and rank.
         """
         metrics = {"job_id": self.job_id, "rank": self.rank}
-        metrics.update(kwargs)  # Add user-provided metrics
+        metrics.update(kwargs)
 
         print(f"[Rank {self.rank}] Metrics: {metrics}")
 

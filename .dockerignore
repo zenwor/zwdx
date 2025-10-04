@@ -1,6 +1,6 @@
 .venv
-**/data/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.swp

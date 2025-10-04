@@ -7,6 +7,14 @@ import logging
 from zwdx.utils import getenv
 from zwdx.server import globals as g
 from zwdx.server.job import register_job_routes
+from zwdx.server.rooms import register_room_routes
+
+
+import dill as pickle_module
+print("ZWDX FORCING dill for serialization")
+
+rooms = {}
+client_rooms = {}
 
 # Logger
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -14,7 +22,15 @@ g.logger = logging.getLogger(__name__)
 
 # Flask + SocketIO
 g.app = Flask(__name__)
-g.socketio = SocketIO(g.app, cors_allowed_origins="*", logger=False, engineio_logger=False)
+g.socketio = SocketIO(
+    g.app,
+    cors_allowed_origins="*",
+    logger=True,  
+    engineio_logger=True,
+    ping_timeout=60,
+    ping_interval=25,
+    max_http_buffer_size=100_000_000  # 100MB - add this line
+)
 
 # Global lists/dicts (redundant but explicit)
 g.registered_clients = []
@@ -35,40 +51,19 @@ threading.Thread(target=cleanup_clients, daemon=True).start()
 def handle_connect():
     g.logger.info(f"Client connected: {request.sid}")
 
-@g.socketio.on("register")
-def handle_register(data):
-    sid = request.sid
-    hostname = data["hostname"]
-    gpus = data["gpus"]
-    client_ip = data["client_ip"]
-
-    g.logger.info(f"Registering client: {hostname}, IP: {client_ip}, GPUs: {len(gpus)}")
-
-    # Update existing client or add new
-    for c in g.registered_clients:
-        if c["hostname"] == hostname:
-            c.update({"sid": sid, "gpus": gpus, "ip": client_ip, "last_seen": time.time()})
-            break
-    else:
-        g.registered_clients.append(
-            {"sid": sid, "hostname": hostname, "gpus": gpus, "ip": client_ip, "last_seen": time.time()}
-        )
-
-    # Just log current clients; do NOT assign global ranks here
-    g.logger.info(f"Currently registered clients: {[c['hostname'] for c in g.registered_clients]}")
-
 # -------- Heartbeat --------
 @g.app.route("/heartbeat", methods=["POST"])
 def heartbeat():
     hostname = request.json.get("hostname")
     for c in g.registered_clients:
-        if c["hostname"] == hostname:
+        if c.get(hostname, None) == hostname:
             c["last_seen"] = time.time()
             break
     return {"status": "ok"}
 
 # -------- Job routes --------
 register_job_routes(g.app, g.socketio)
+register_room_routes(g.app, g.socketio)
 
 # -------- Get results route --------
 @g.app.route("/get_results/<job_id>", methods=["GET"])
