@@ -1,4 +1,3 @@
-# job_routes.py
 from flask import request, jsonify
 from zwdx.server.server import Server
 from zwdx.server.job import Job
@@ -104,9 +103,13 @@ def register_job_routes():
         job = server.job_pool.get_job(job_id)
         if job:
             job.mark_complete(final_loss, model_state_dict_bytes)
+            
+            # NEW: Mark all job clients as free
+            for client in job.selected_clients:
+                client.mark_free()
         else:
             logger.error(f"Job {job_id} not found in pool")
-
+        
     @socketio.on("training_progress")
     def handle_training_progress(data):
         job_id = data.get("job_id")

@@ -35,6 +35,15 @@ def register_room_routes():
             server.logger.error(f"Error fetching room clients: {e}")
             return jsonify({"status": "error", "message": str(e)}), 500
 
+    @server.app.route("/room_jobs/<room_token>", methods=["GET"])
+    def room_jobs(room_token):
+        """Return all jobs for a specific room."""
+        jobs_in_room = [
+            job.to_dict() for job in server.job_pool.jobs.values()
+            if job.room_token == room_token
+        ]
+        return jsonify({"status": "success", "jobs": jobs_in_room})
+
     @socketio.on("register_client")
     def handle_register_client(data):
         client_id = str(uuid.uuid4())

@@ -27,9 +27,15 @@ class ClientPool:
 
     def remove_client(self, client_id):
         if client_id in self.clients:
+            client = self.clients[client_id]
+            
+            from zwdx.server.server import Server
+            server = Server.instance()
+            server.room_pool.remove_client(client_id)
+            
             del self.clients[client_id]
             logger.info(f"Removed client {client_id} from pool.")
-    
+            
     def get_by_sid(self, sid):
         for client in self.clients.values():
             if client.sid == sid:
@@ -52,12 +58,18 @@ class ClientPool:
     def cleanup_clients(self):
         while True:
             now = time.time()
-            to_remove = [cid for cid, c in self.clients.items() if not c.connected]
+            to_remove = []
+            
+            for cid, c in self.clients.items():
+                if not c.connected or (now - c.last_seen) > self._cleanup_timeout:
+                    to_remove.append(cid)
+            
             for cid in to_remove:
-                logger.info(f"Removing disconnected client {cid}")
-                del self.clients[cid]
+                logger.info(f"Removing disconnected/timed-out client {cid}")
+                self.remove_client(cid)
+                
             time.sleep(self._cleanup_interval)
-        
+            
     def start_cleanup(self):
         if self._cleanup_thread is None:
             self._cleanup_thread = threading.Thread(target=self.cleanup_clients, daemon=True)

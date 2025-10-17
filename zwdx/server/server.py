@@ -62,6 +62,10 @@ class Server:
             return self.app
         
         self.app = Flask(__name__)
+        
+        from flask_cors import CORS
+        CORS(self.app, resources={r"/*": {"origins": "*"}})  # all origins
+        
         self.socketio = SocketIO(
             self.app,
             cors_allowed_origins="*",

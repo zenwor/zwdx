@@ -32,6 +32,11 @@ class Room:
         for client_id in self.clients:
             client = server.client_pool.get_by_id(client_id)
             
+            # Prevent silent fail
+            if client is None:
+                logger.warning(f"Client {client_id} not found in pool (may have disconnected)")
+                continue
+            
             if client.is_busy():
                 continue
             
