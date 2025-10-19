@@ -196,11 +196,11 @@ def run_training_worker(data, rank, world_size, master_addr, sio):
             if train_func:
                 final_loss = train_func(
                     model=model,
-                    data_loader=data_loader,
+                    loader=data_loader,
                     rank=rank,
                     world_size=world_size,
                     eval_func=eval_func,
-                    optimizer=optimizer,
+                    optim=optimizer,
                     reporter=reporter,
                 )
                 logger.info(f"[Worker] Training finished, final_loss={final_loss}")

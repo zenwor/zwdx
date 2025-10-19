@@ -9,6 +9,9 @@ from urllib3.util.retry import Retry
 import threading
 import argparse
 
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 logger = logging.getLogger("zwdx")
 logger.setLevel(logging.INFO)
 if logger.hasHandlers():
@@ -78,6 +81,7 @@ def serialize_function_with_source(func):
 class ZWDX:
     def __init__(self, server_url):
         self.server_url = server_url
+        self.logger = logger
 
     def submit_job(
         self,
@@ -258,7 +262,9 @@ class ZWDX:
             help="Room token to join a private training room."
         )
         return parser.parse_args()
-
+    
+    def get_logger(self):
+        return self.logger
 
 class Reporter:
     def __init__(self, sio, job_id, rank):
