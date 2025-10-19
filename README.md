@@ -1,4 +1,5 @@
-# zwdx (work-in-progress)
+![zwdx](logo.png "zwdx")
+
 **distributed. accelerated. done.**
 
 ⚠️ This is a college project. It is not done. Still only works locally. Will make it work truly remotely hopefully soon.
