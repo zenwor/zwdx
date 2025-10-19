@@ -3,7 +3,7 @@
   distributed. accelerated. done.
 </p>
 
-⚠️ This is a college project. It is not done, as it still only works locally. Will make it work truly remotely hopefully soon. Shouldn't be too problematic.
+⚠️ This is a personal project. It is not done, as it still only works locally. Will make it work truly remotely hopefully soon. Shouldn't be too problematic.
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white)](#)
