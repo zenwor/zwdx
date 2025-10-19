@@ -257,7 +257,7 @@ The web UI provides:
 > 
 > This project uses NVIDIA software. The base container is proprietary and must be pulled by each user separately:
 > ```bash
-> docker pull pytorch/pytorch:2.5.0-cuda12.8-cudnn9-devel
+> docker pull pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel
 > ```
 > 
 > **Do NOT redistribute the NVIDIA container.** 
