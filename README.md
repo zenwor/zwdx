@@ -1,8 +1,9 @@
-![zwdx](logo.png "zwdx")
+<p align="center">
+  <img src="logo.png" alt="zwdx" title="zwdx" width="200"/><br>
+  distributed. accelerated. done.
+</p>
 
-**distributed. accelerated. done.**
-
-⚠️ This is a college project. It is not done. Still only works locally. Will make it work truly remotely hopefully soon.
+⚠️ This is a college project. It is not done, as it still only works locally. Will make it work truly remotely hopefully soon. Shouldn't be too problematic.
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white)](#)
