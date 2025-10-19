@@ -84,7 +84,7 @@ def create_mnist_loader(rank, world_size, data_path=None):
     return loader
 
 
-def train_mnist(model, data_loader, optimizer, eval_func, rank, world_size, epochs=3, reporter=None):
+def train_mnist(model, data_loader, optimizer, eval_func, rank, world_size, epochs=10, reporter=None):
     """
     Training loop for MNIST with proper loss tracking and reporting.
     """
@@ -198,7 +198,7 @@ if __name__ == "__main__":
         train_func=train_mnist,
         eval_func=test_mnist,
         optimizer=optimizer,
-        parallelism="DDP",
+        parallelism="FSDP",
         memory_required=12_000_000_000,
         room_token=room_token,
     )

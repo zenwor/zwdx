@@ -99,6 +99,25 @@ def register_job_routes():
             logger.error(f"Error in submit_job: {e}", exc_info=True)
             return jsonify({"status": "error", "message": str(e)}), 500
 
+    @app.route("/delete_job/<job_id>", methods=["DELETE"])
+    def delete_job(job_id):
+        """Delete a job from job_pool, room_pool, and MongoDB."""
+        try:
+            server = Server.instance()
+            job = server.job_pool.get_job(job_id)
+            if not job:
+                return jsonify({"status": "error", "message": "Job not found"}), 404
+
+            room = server.room_pool.get_room_by_token(job.room_token)
+            room.remove_job(job)
+            server.job_pool.remove_job(job_id)
+
+            return jsonify({"status": "success", "message": f"Job {job_id} deleted"})
+
+        except Exception as e:
+            logger.error(f"Error deleting job {job_id}: {e}", exc_info=True)
+            return jsonify({"status": "error", "message": str(e)}), 500
+
     @app.route("/get_results/<job_id>", methods=["GET"])
     def get_results(job_id):
         """Get results for a specific job (for UI)."""

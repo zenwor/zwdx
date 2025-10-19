@@ -1,10 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getRoomJobs, getJobResults } from "../api";
+import { getRoomJobs, getJobResults, deleteJob } from "../api";
 import JobProgressGraph from "../components/JobProgressGraph.jsx";
 import JobDetails from "../components/JobDetails.jsx";
 import "../styles/RoomPage.css";
 
+export function formatJobStatus(status) {
+  switch (status.toLowerCase()) {
+    case "complete":
+    case "done":
+      return "✅ Complete";
+    case "failed":
+      return "❌ Failed";
+    case "running":
+    case "in_progress":
+      return "🚀 Running";
+    default:
+      return `❔ ${status}`;
+  }
+}
 
 export default function RoomPage() {
   const { token: roomToken } = useParams();
@@ -68,18 +82,38 @@ export default function RoomPage() {
         {jobs.length === 0 ? (
             <p>No jobs yet in this room.</p>
         ) : (
-            <ul>
-            {jobs.map((job) => (
-                <li key={job.job_id}>
+        <ul>
+          {jobs.map((job) => (
+            <li key={job.job_id} className="job-item">
+              <div className="job-entry">
                 <button
-                    className={selectedJob?.job_id === job.job_id ? "job-btn active" : "job-btn"}
-                    onClick={() => setSelectedJob(job)}
+                  className={selectedJob?.job_id === job.job_id ? "job-btn active" : "job-btn"}
+                  onClick={() => setSelectedJob(job)}
                 >
-                    {`Job ${job.job_id.slice(0, 8)} — ${job.status}`}
+                  <span>{`Job ${job.job_id.slice(0, 8)}`}</span>
+                  <span className="job-status">{formatJobStatus(job.status)}</span>
                 </button>
-                </li>
-            ))}
-            </ul>
+                <button
+                  className="delete-job-btn"
+                  title="Delete Job"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!window.confirm("Are you sure you want to delete this job?")) return;
+                    try {
+                      await deleteJob(job.job_id);
+                      setJobs((prev) => prev.filter((j) => j.job_id !== job.job_id));
+                      if (selectedJob?.job_id === job.job_id) setSelectedJob(null);
+                    } catch (err) {
+                      console.error("Failed to delete job:", err);
+                    }
+                  }}
+                >
+                  🗑️
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
         )}
         </div>
         <div className="job-results-panel">

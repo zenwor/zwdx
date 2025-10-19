@@ -30,3 +30,15 @@ export async function checkRoomExists(roomToken) {
   if (data.status === "error") throw new Error(data.message);
   return data.exists;
 }
+
+export async function deleteJob(job_id) {
+  try {
+    const res = await fetch(`${API_BASE}/delete_job/${job_id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (data.status === "error") throw new Error(data.message);
+    return data;
+  } catch (err) {
+    console.error("Failed to delete job:", err);
+    throw err;
+  }
+}
