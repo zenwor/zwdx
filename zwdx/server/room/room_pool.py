@@ -2,6 +2,7 @@ import secrets
 import logging
 
 from .room import Room
+from zwdx.server.db import Database
 
 logger = logging.getLogger("server")
 
@@ -10,25 +11,35 @@ class RoomPool:
         self.rooms = {}  # token -> Room
         self.client_to_room = {}  # client_id -> token
 
-        # Create a public room
-        public = Room(token=None)
-        self.rooms[None] = public
+        self.populate()
 
+    def populate(self):
+        db = Database.instance()
+        rooms_cursor = db.db.rooms.find({})
+
+        for room_doc in rooms_cursor:
+            room = Room.from_dict(room_doc)
+            self.rooms[room.token] = room
+
+        logger.info(f"Loaded {len(self.rooms)} rooms from database.")
+        
     def create_room(self):
         while True:
             token = secrets.token_hex(8)
             if token not in self.rooms:
                 break
-        self.rooms[token] = Room(token)
+            
+        new_room = Room(token)
+        self.rooms[token] = new_room
         logger.info(f"Created new room: {token}")
+        
+        # Persist
+        db = Database.instance()
+        db.add_room(new_room.to_dict())
         return token
 
     def assign_client(self, client_id, token=None):
-        # If token is invalid, assign to public room (token=None)
         room = self.rooms.get(token)
-        if room is None:
-            room = self.rooms[None]
-            token = None
 
         room.add_client(client_id)
         self.client_to_room[client_id] = token

@@ -15,11 +15,18 @@ export async function getJobResults(job_id) {
 }
 
 export async function getRoomJobs(roomToken) {
-  console.log("Fetching jobs for room:", roomToken); // 👈 add this line
+  console.log("Fetching jobs for room:", roomToken);
   const res = await fetch(`${API_BASE}/room_jobs/${roomToken}`);
-  console.log("Response status:", res.status); // 👈 add this line
+  console.log("Response status:", res.status);
   const data = await res.json();
-  console.log("Jobs response:", data); // 👈 add this line
+  console.log("Jobs response:", data);
   if (data.status === "error") throw new Error(data.message);
   return data.jobs;
+}
+
+export async function checkRoomExists(roomToken) {
+  const res = await fetch(`${API_BASE}/check_room/${roomToken}`);
+  const data = await res.json();
+  if (data.status === "error") throw new Error(data.message);
+  return data.exists;
 }

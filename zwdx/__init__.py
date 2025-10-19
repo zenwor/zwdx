@@ -2,15 +2,12 @@ import requests
 import base64
 import dill
 import inspect
-import torch
-import torch.nn as nn
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, DistributedSampler
 import logging
 import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import threading
+import argparse
 
 logger = logging.getLogger("zwdx")
 logger.setLevel(logging.INFO)
@@ -24,7 +21,6 @@ def serialize_model_with_source(model):
     """
     import inspect
     
-    # Get the model's class
     model_class = type(model)
     
     try:
@@ -39,7 +35,7 @@ def serialize_model_with_source(model):
             "class_source": class_source,
             "class_name": class_name,
             "state_dict": base64.b64encode(dill.dumps(state_dict)).decode("utf-8"),
-            "pickled": None  # Don't use pickle for model
+            "pickled": None
         }
     except Exception as e:
         logger.warning(f"Could not extract model source: {e}, falling back to pickle")
@@ -51,33 +47,6 @@ def serialize_model_with_source(model):
         }
 
 def serialize_function_with_source(func):
-    """
-    Serialize a function by extracting its source code alongside dill pickle.
-    This helps survive Docker/environment boundaries.
-    """
-    if func is None:
-        return None
-    
-    try:
-        # Get source code
-        source = inspect.getsource(func)
-        func_name = func.__name__
-        
-        # Also pickle it (for fallback)
-        pickled = dill.dumps(func, recurse=True)
-        
-        return {
-            "source": source,
-            "name": func_name,
-            "pickled": base64.b64encode(pickled).decode("utf-8")
-        }
-    except Exception as e:
-        logger.warning(f"Could not extract source for {func.__name__}: {e}, using pickle only")
-        return {
-            "source": None,
-            "name": func.__name__,
-            "pickled": base64.b64encode(dill.dumps(func, recurse=True)).decode("utf-8")
-        }
     """
     Serialize a function by extracting its source code alongside dill pickle.
     This helps survive Docker/environment boundaries.
@@ -158,30 +127,75 @@ class ZWDX:
             response = session.post(f"{self.server_url}/submit_job", json=job, timeout=10)
             result = response.json()
 
-            if result["status"] != "job started":
+            if result.get("status") != "job started":
+                logger.error(f"Job submission failed: {result}")
                 return result
 
             job_id = result["job_id"]
-            logger.info(f"Polling for job {job_id} results")
+            logger.info(f"Job {job_id} started! Polling for results...")
 
             last_progress_count = 0
+            consecutive_failures = 0
+            max_failures = 5  # Give up after 5 consecutive failures
+            
             while True:
-                response = session.get(f"{self.server_url}/get_results/{job_id}", timeout=10)
-                result = response.json()
-                if result["status"] == "pending":
-                    new_progress = result["progress"][last_progress_count:]
+                try:
+                    response = session.get(f"{self.server_url}/get_results/{job_id}", timeout=10)
+                    result = response.json()
+                    consecutive_failures = 0  # Reset on successful request
+                    
+                    if result.get("status") == "error":
+                        logger.error(f"Error retrieving results: {result.get('message', 'Unknown error')}")
+                        return result
+                    
+                    job_status = result.get("job_status", "unknown")
+                    
+                    # Log new progress updates
+                    progress = result.get("progress", [])
+                    new_progress = progress[last_progress_count:]
                     for update in new_progress:
                         log_message = f"Job {job_id}, rank {update.get('rank', 'unknown')}: {update}"
                         logger.info(log_message)
-                    last_progress_count = len(result["progress"])
-                    time.sleep(2)
-                elif result["status"] == "complete":
-                    logger.info(f"Job {job_id} completed: final_loss={result['results']['final_loss']}")
-                    result["job_id"] = job_id
-                    return result
-                else:
-                    logger.error(f"Error retrieving results: {result['message']}")
-                    return result
+                    last_progress_count = len(progress)
+                    
+                    # Check if job is complete
+                    if job_status == "complete" or result.get("complete", False):
+                        logger.info(f"Job {job_id} completed!")
+                        if result.get("results"):
+                            logger.info(f"Final loss: {result['results'].get('final_loss', 'N/A')}")
+                        result["job_id"] = job_id
+                        return result
+                    
+                    elif job_status == "failed":
+                        logger.error(f"Job {job_id} failed!")
+                        if result.get("results") and result["results"].get("failure_reason"):
+                            logger.error(f"Failure reason: {result['results']['failure_reason']}")
+                        return result
+                    
+                    elif job_status in ["pending", "running"]:
+                        # Job still running, continue polling
+                        time.sleep(2)
+                    
+                    else:
+                        logger.warning(f"Unknown job status: {job_status}")
+                        time.sleep(2)
+                        
+                except Exception as e:
+                    consecutive_failures += 1
+                    logger.error(f"Error polling job {job_id} ({consecutive_failures}/{max_failures}): {e}")
+                    
+                    if consecutive_failures >= max_failures:
+                        logger.error(f"Server unreachable after {max_failures} attempts. Job likely terminated.")
+                        logger.error("The training workers should have auto-terminated due to server loss.")
+                        return {
+                            "status": "error",
+                            "job_status": "failed",
+                            "message": f"Server became unreachable. Training automatically terminated.",
+                            "job_id": job_id
+                        }
+                    
+                    time.sleep(5)  # Wait longer between retries when server is down
+                    
         except Exception as e:
             logger.error(f"Job submission failed: {e}")
             import traceback
@@ -200,8 +214,13 @@ class ZWDX:
             response = session.get(f"{self.server_url}/get_results/{job_id}", timeout=10)
             result = response.json()
 
-            if result["status"] != "complete":
-                logger.error(f"Cannot retrieve model: Job {job_id} is not complete (status: {result['status']})")
+            if result.get("status") == "error":
+                logger.error(f"Error retrieving model: {result.get('message', 'Unknown error')}")
+                return None
+
+            job_status = result.get("job_status", "unknown")
+            if job_status != "complete" and not result.get("complete", False):
+                logger.error(f"Cannot retrieve model: Job {job_id} is not complete (status: {job_status})")
                 return None
 
             model_state_dict_bytes = result.get("model_state_dict_bytes")
@@ -228,6 +247,18 @@ class ZWDX:
         for k, v in opt.defaults.items():
             kwargs[k] = v
         return {"class": cls_name, "kwargs": kwargs}
+    
+    def parse_args(self):
+        parser = argparse.ArgumentParser(description="zwdx user argument parser.")
+        parser.add_argument(
+            "-rt", "--room_token",
+            type=str,
+            default=None,
+            required=True,
+            help="Room token to join a private training room."
+        )
+        return parser.parse_args()
+
 
 class Reporter:
     def __init__(self, sio, job_id, rank):

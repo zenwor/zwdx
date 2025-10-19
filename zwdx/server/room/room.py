@@ -1,12 +1,15 @@
+from zwdx.server.db import Database
+
 import logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 class Room:
-    def __init__(self, token):
+    def __init__(self, token, jobs = None):
         self.token = token
         self.clients = set()
-
+        self.jobs = set(jobs) if jobs else set()
+        
     def add_client(self, client_id):
         self.clients.add(client_id)
 
@@ -21,7 +24,7 @@ class Room:
     
     def select_clients_for_job(self, memory_required):
         if self.client_count() == 0:
-            logger.warning(f"No clients in room {self.room_token} with GPU info")
+            logger.warning(f"No clients in room {self.token} with GPU info")
             return None
 
         from zwdx.server.server import Server
@@ -53,5 +56,48 @@ class Room:
                     client.rank = i
                 return eligible_clients
 
-        logger.error(f"Not enough cumulative GPU memory in room {self.room_token} ({total_memory} < {self.memory_required})")
+        logger.error(f"Not enough cumulative GPU memory in room {self.token} ({total_memory} < {memory_required})")
         return None
+
+    def add_job(self, job):
+        self.jobs.add(job.job_id)
+        
+        # Persist
+        db = Database.instance()
+        db.rooms.update_one(
+            {"room_token": self.token},
+            {"$addToSet": {"jobs": job.job_id}}
+        )
+        
+        logger.info(f"Added job {job.job_id} to room {self.token} in DB")
+    
+    def remove_job(self, job):
+        self.jobs.discard(job.job_id)
+
+        # Persist to database
+        db = Database.instance()
+        db.rooms.update_one(
+            {"room_token": self.token},
+            {"$pull": {"jobs": job.job_id}}
+        )
+
+        logger.info(f"Removed job {job.job_id} from room {self.token} in DB")    
+
+    def has_job(self, job):
+        return job.job_id in self.jobs
+    
+    def job_count(self):
+        return len(self.jobs)
+    
+    @staticmethod
+    def from_dict(data):
+        return Room(
+            token=data.get("room_token"),
+            jobs=set(data.get("jobs", []))
+        )
+    
+    def to_dict(self):
+        return {
+            "room_token": self.token,
+            "jobs": list(self.jobs)
+        }

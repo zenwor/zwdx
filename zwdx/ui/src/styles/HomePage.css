@@ -1,11 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-
-:root {
-  --activation-color: #FF5F1F; 
-  --text-color: #e0e0e0;       
-  --bg-color: #1f1f1f;
-}
+@import './variables.css';
 
 body, .App, .home-container, .room-page-container {
   font-family: 'Inter', Arial, sans-serif;
@@ -39,14 +34,13 @@ input {
   width: 250px;
   font-size: 16px;
   border-radius: 4px;
-  border: 1px solid #333;
-  background-color: #1f1f1f;
-  color: #e0e0e0;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+  color: var(--text-color);
 }
 
 input:focus {
   outline: none;
-  border-color: #61dafb;
 }
 
 .generate-section {
@@ -68,7 +62,7 @@ input:focus {
   position: relative;
   font-family: 'Press Start 2P', cursive;
   font-size: 32px;
-  color: #e0e0e0;
+  color: var(--text-color);
   cursor: pointer;
   display: inline-block;
   margin-left: 10px; 
@@ -103,7 +97,6 @@ input:focus {
 }
 
 .pixel-title:hover {
-  transform: translate(-6px, -6px);
   opacity: 1;
 }
 
@@ -159,9 +152,9 @@ input:focus {
   width: 100%;                     
   padding: 10px 80px 10px 10px;   
   border-radius: 4px;              
-  border: 1px solid #333;
-  background-color: #1f1f1f;
-  color: #e0e0e0;
+  border: 1px solid var(--border-color);
+  background-color: var(--background-color);
+  color: var(--text-color);
   font-size: 16px;
   box-sizing: border-box;
 }
@@ -183,7 +176,7 @@ input:focus {
 }
 
 .input-with-button .join-btn:hover {
-  background-color: #FF6333;
+  background-color: var(--activation-color);
 }
 
 .input-section {

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { createRoom } from "../api";
+import { createRoom, checkRoomExists } from "../api";
 import "../styles/HomePage.css";
 import { useNavigate } from "react-router-dom";
 
@@ -17,12 +17,22 @@ export default function HomePage() {
     }
   };
 
-  const handleJoinRoom = () => {
+  const handleJoinRoom = async () => {
     if (!roomToken) {
       alert("Please enter a room token");
       return;
     }
-    navigate(`/room/${roomToken}`);
+
+    try {
+      const exists = await checkRoomExists(roomToken);
+      if (exists) {
+        navigate(`/room/${roomToken}`);
+      } else {
+        alert("Room does not exist. Please check the token or create a new one.");
+      }
+    } catch (err) {
+      alert("Error checking room: " + err.message);
+    }
   };
 
   return (

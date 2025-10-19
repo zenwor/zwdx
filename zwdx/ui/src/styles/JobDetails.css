@@ -1,0 +1,62 @@
+@import "./variables.css";
+
+.job-details {
+  margin-top: 20px;
+  padding: 12px 16px;
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-color);
+  max-width: 600px;
+  width: 100%;
+  font-family: 'Inter', Arial, sans-serif;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.job-details h4 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  color: var(--activation-color);
+  text-align: left;
+}
+
+.job-details table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.job-details td {
+  padding: 6px 8px;
+  font-size: 14px;
+  vertical-align: top;
+}
+
+.job-details td:first-child {
+  font-weight: 600;
+  color: var(--job-details-text-color);
+  width: 40%;
+}
+
+.job-details tr:not(:last-child) td {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.job-details tr:hover td:last-child {
+  color: var(--activation-color);
+  transition: color 0.2s ease;
+}
+
+@media (max-width: 768px) {
+  .job-details {
+    max-width: 100%;
+    padding: 10px 12px;
+  }
+
+  .job-details h4 {
+    font-size: 16px;
+  }
+
+  .job-details td {
+    font-size: 13px;
+  }
+}

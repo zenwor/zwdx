@@ -1,6 +1,7 @@
 import logging
 from flask import Flask
 from flask_socketio import SocketIO
+from threading import Lock
 
 from zwdx.utils import getenv
 
@@ -10,13 +11,15 @@ logger = logging.getLogger("server")
 
 class Server:
     _instance = None
+    _lock = Lock()
     
     def __init__(self, host=None, port=None, master_port="29500"):
+        """Private constructor — use instance() to get the singleton."""
         if Server._instance is not None:
             raise RuntimeError("Server is a singleton. Use Server.instance() to access existing instance.")
         
         from zwdx.server.job import JobPool
-        from zwdx.server.client import ClientPool
+        from zwdx.server.gpu_client_node import GPUClientPool
         from zwdx.server.room import RoomPool
         
         # Configuration
@@ -28,7 +31,7 @@ class Server:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
         self.logger = logging.getLogger(__name__)
         
-        self.client_pool = ClientPool()
+        self.client_pool = GPUClientPool()
         self.room_pool = RoomPool()
         self.job_pool = JobPool()
         
@@ -41,14 +44,11 @@ class Server:
     
     @classmethod
     def instance(cls):
-        """
-        Get the singleton server instance.
-        
-        Raises:
-            RuntimeError: If server hasn't been initialized yet
-        """
+        """Return the singleton instance (create if it doesn't exist)."""
         if cls._instance is None:
-            raise RuntimeError("Server not initialized. Create a Server() instance first.")
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
     
     @classmethod
@@ -64,7 +64,7 @@ class Server:
         self.app = Flask(__name__)
         
         from flask_cors import CORS
-        CORS(self.app, resources={r"/*": {"origins": "*"}})  # all origins
+        CORS(self.app, resources={r"/*": {"origins": "*"}})
         
         self.socketio = SocketIO(
             self.app,
@@ -73,7 +73,7 @@ class Server:
             engineio_logger=True,
             ping_timeout=60,
             ping_interval=25,
-            max_http_buffer_size=100_000_000
+            max_http_buffer_size=100_000_000,
         )
         
         # Register all routes

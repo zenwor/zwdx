@@ -19,12 +19,12 @@ def register_core_routes():
         if client:
             client.mark_disconnected()
     
-    @server.app.route("/get_results/<job_id>", methods=["GET"])
-    def get_results(job_id):
-        job = server.job_pool.get_job(job_id)
-        if not job:
-            return jsonify({"status": "error", "message": "Job not found"}), 404
-        return jsonify(job.to_dict())
+    # @server.app.route("/get_results/<job_id>", methods=["GET"])
+    # def get_results(job_id):
+    #     job = server.job_pool.get_job(job_id)
+    #     if not job:
+    #         return jsonify({"status": "error", "message": "Job not found"}), 404
+    #     return jsonify(job.to_dict())
     
     @server.app.route("/health", methods=["GET"])
     def health():

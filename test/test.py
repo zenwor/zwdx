@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class CNNPOC(nn.Module):
-    """Simple CNN for MNIST classification"""
     def __init__(self):
         super(CNNPOC, self).__init__()
         self.conv1 = nn.Conv2d(1, 32, 3, padding=1)
@@ -50,7 +49,7 @@ def create_mnist_loader(rank, world_size, data_path=None):
     ])
     
     # Download/load MNIST - use /tmp for Docker compatibility
-    data_dir = data_path if data_path else '/tmp/mnist_data'
+    data_dir = data_path if data_path else "/tmp/mnist_data"
     dataset = datasets.MNIST(
         root=data_dir,
         train=True,
@@ -85,7 +84,7 @@ def create_mnist_loader(rank, world_size, data_path=None):
     return loader
 
 
-def train_mnist(model, data_loader, optimizer, eval_func, rank, world_size, epochs=50, reporter=None):
+def train_mnist(model, data_loader, optimizer, eval_func, rank, world_size, epochs=3, reporter=None):
     """
     Training loop for MNIST with proper loss tracking and reporting.
     """
@@ -115,7 +114,7 @@ def train_mnist(model, data_loader, optimizer, eval_func, rank, world_size, epoc
         loss.backward()
         optimizer.step()
         
-        break  # Just check first batch for debugging
+        break
     
     for epoch in range(epochs):
         total_loss = 0.0
@@ -184,19 +183,8 @@ def test_mnist(model, data_loader, rank, world_size):
     
     return test_loss, accuracy
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Client for distributed training")
-    parser.add_argument(
-        "--room_token",
-        type=str,
-        default=None,
-        help="Room token to join a private training room. If not provided, joins public pool."
-    )
-    return parser.parse_args()
-
-
 if __name__ == "__main__":
-    args = parse_args()
+    args = zwdx.parse_args()
     room_token = args.room_token
     
     model = CNNPOC()
@@ -211,7 +199,7 @@ if __name__ == "__main__":
         eval_func=test_mnist,
         optimizer=optimizer,
         parallelism="DDP",
-        memory_required=0,
+        memory_required=12_000_000_000,
         room_token=room_token,
     )
 
